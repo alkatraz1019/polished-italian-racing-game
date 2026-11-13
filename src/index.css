@@ -1,0 +1,217 @@
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
+
+  --color-ink: #0b0d0c;
+  --color-coal: #121615;
+  --color-panel: #171c1b;
+  --color-paper: #f3ecdd;
+  --color-paper-dim: #e2d8c4;
+  --color-rosso: #e23e31;
+  --color-rosso-deep: #bb2a22;
+  --color-verde: #1f7a52;
+  --color-oro: #e9b45c;
+  --color-mist: #9aa39d;
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    background: #0b0d0c;
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    background: #0b0d0c;
+    color: var(--color-paper);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: #e23e31;
+    color: #f3ecdd;
+  }
+  button {
+    font-family: inherit;
+  }
+  input {
+    font-family: inherit;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+  .font-editorial {
+    font-family: var(--font-serif);
+    font-style: italic;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .grain {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+  .paper-texture {
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.55), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent 46%),
+      repeating-linear-gradient(
+        115deg,
+        rgba(90, 74, 44, 0.035) 0px,
+        rgba(90, 74, 44, 0.035) 1px,
+        transparent 1px,
+        transparent 5px
+      );
+  }
+  .checker {
+    background-image:
+      linear-gradient(45deg, rgba(11, 13, 12, 0.16) 25%, transparent 25%, transparent 75%, rgba(11, 13, 12, 0.16) 75%),
+      linear-gradient(45deg, rgba(11, 13, 12, 0.16) 25%, transparent 25%, transparent 75%, rgba(11, 13, 12, 0.16) 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 6px 6px;
+  }
+  .glass {
+    background: linear-gradient(160deg, rgba(20, 26, 25, 0.82), rgba(11, 14, 13, 0.7));
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  }
+  .tricolore {
+    background: linear-gradient(
+      to right,
+      var(--color-verde) 0 33.33%,
+      #f3ecdd 33.33% 66.66%,
+      var(--color-rosso) 66.66% 100%
+    );
+  }
+  .text-shadow-hard {
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  }
+}
+
+@keyframes float-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.012) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(226, 62, 49, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(226, 62, 49, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(226, 62, 49, 0);
+  }
+}
+@keyframes soft-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes needle-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(233, 180, 92, 0.65));
+  }
+  50% {
+    filter: drop-shadow(0 0 9px rgba(233, 180, 92, 0.95));
+  }
+}
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  60%,
+  100% {
+    transform: translateX(230%) skewX(-18deg);
+  }
+}
+
+.anim-float-up {
+  animation: float-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-pop {
+  animation: pop-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-slide {
+  animation: slide-right 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-blink {
+  animation: soft-blink 1.4s ease-in-out infinite;
+}
+.anim-glow {
+  animation: pulse-ring 2.4s ease-out infinite;
+}
+.anim-marquee {
+  animation: marquee 26s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-float-up,
+  .anim-pop,
+  .anim-slide,
+  .anim-blink,
+  .anim-glow,
+  .anim-marquee {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
