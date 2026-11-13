@@ -358,17 +358,50 @@ export class MilleCurveGame {
 
   /* --------------------------------------------------------- proiezione */
 
-  private project(p: Point3D, camX: number, camY: number, camZ: number) {
+  private projectScreen(p: Point3D) {
     const w = this.width;
     const h = this.height;
-    p.camera.x = (p.world.x || 0) - camX;
-    p.camera.y = (p.world.y || 0) - camY;
-    p.camera.z = (p.world.z || 0) - camZ;
-    if (p.camera.z < 0.8) p.camera.z = 0.8;
-    p.screen.scale = CAM_DEPTH / p.camera.z;
+    const safeZ = Math.max(CAM_DEPTH + 1, p.camera.z);
+    p.screen.scale = CAM_DEPTH / safeZ;
     p.screen.x = Math.round(w / 2 + p.screen.scale * p.camera.x * (w / 2));
     p.screen.y = Math.round(h / 2 - p.screen.scale * p.camera.y * (h / 2));
     p.screen.w = Math.round(p.screen.scale * ROAD_WIDTH * (w / 2));
+  }
+
+  private projectSegment(
+    seg: Segment,
+    camX1: number,
+    camX2: number,
+    camY: number,
+    camZ: number
+  ): boolean {
+    const p1 = seg.p1;
+    const p2 = seg.p2;
+    p1.camera.x = (p1.world.x || 0) - camX1;
+    p1.camera.y = (p1.world.y || 0) - camY;
+    p1.camera.z = (p1.world.z || 0) - camZ;
+
+    p2.camera.x = (p2.world.x || 0) - camX2;
+    p2.camera.y = (p2.world.y || 0) - camY;
+    p2.camera.z = (p2.world.z || 0) - camZ;
+
+    const nearZ = CAM_DEPTH + 1.5;
+    if (p2.camera.z <= nearZ) {
+      return false;
+    }
+
+    // Se il segmento attraversa il piano vicino della telecamera, ritaglia p1 in 3D
+    if (p1.camera.z < nearZ) {
+      const dz = p2.camera.z - p1.camera.z;
+      const t = dz > 0.0001 ? clamp((nearZ - p1.camera.z) / dz, 0, 1) : 0;
+      p1.camera.x = lerp(p1.camera.x, p2.camera.x, t);
+      p1.camera.y = lerp(p1.camera.y, p2.camera.y, t);
+      p1.camera.z = nearZ;
+    }
+
+    this.projectScreen(p1);
+    this.projectScreen(p2);
+    return true;
   }
 
   /* ----------------------------------------------------------- ingresso */
@@ -764,7 +797,8 @@ export class MilleCurveGame {
 
   private loop = (time: number) => {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = this.lastTime ? Math.min(0.045, (time - this.lastTime) / 1000) : 0.016;
+    const rawDt = this.lastTime ? (time - this.lastTime) / 1000 : 0.016;
+    const dt = Number.isFinite(rawDt) && rawDt > 0 ? Math.min(0.045, rawDt) : 0.016;
     this.lastTime = time;
     if (this.mode === "paused") {
       if (this.needsRender) {
@@ -840,7 +874,7 @@ export class MilleCurveGame {
     const offroad = Math.abs(this.playerX) > 1.02;
     this.offroad = offroad;
 
-    // Sterzo personalizzato + eventuale sbandata sull'olio
+    // Sterzo personalizzato + eventuale sbandata sull'olio + guardrail banchina
     const cronoGrip = this.cronoTimer > 0 ? 1.18 : 1;
     const steerRate =
       (1.55 + speedRatio * 1.25) *
@@ -848,10 +882,15 @@ export class MilleCurveGame {
       cronoGrip *
       (this.brakeActive ? 1.15 : 1);
     const dx = dt * steerRate * (0.35 + 0.65 * speedRatio);
-    const slipWobble = this.slipTimer > 0 ? Math.sin(this.elapsed * 23) * dt * 1.45 : 0;
+    const slipWobble = this.slipTimer > 0 ? Math.sin(this.elapsed * 23) * dt * 1.15 : 0;
+    const edgeDamp = clamp(1 - Math.max(0, Math.abs(this.playerX) - 0.9) * 2.1, 0.22, 1);
     this.playerX += input.steer * dx + slipWobble;
-    this.playerX -= dx * speedRatio * playerSeg.curve * 0.165 * phys.curveDriftMult;
-    this.playerX = clamp(this.playerX, -1.62, 1.62);
+    this.playerX -=
+      dx * speedRatio * playerSeg.curve * 0.165 * phys.curveDriftMult * edgeDamp;
+    if (Math.abs(this.playerX) > 1.06 && input.steer * Math.sign(this.playerX) <= 0) {
+      this.playerX -= Math.sign(this.playerX) * dt * 0.58;
+    }
+    this.playerX = clamp(Number.isFinite(this.playerX) ? this.playerX : 0, -1.16, 1.16);
     this.steerSmooth = lerp(
       this.steerSmooth,
       input.steer + (this.slipTimer > 0 ? Math.sin(this.elapsed * 23) * 0.65 : 0),
@@ -1473,10 +1512,17 @@ export class MilleCurveGame {
   private resize() {
     const parent = this.canvas.parentElement;
     const rect = parent ? parent.getBoundingClientRect() : this.canvas.getBoundingClientRect();
-    const w = Math.max(280, Math.round(rect.width));
-    const h = Math.max(320, Math.round(rect.height));
-    this.dpr = Math.min(window.devicePixelRatio || 1, w < 700 ? 1.6 : 1.8);
-    this.drawDist = w < 700 ? 132 : 164;
+    if ((rect.width < 40 || rect.height < 40) && this.width > 0 && this.height > 0) {
+      return;
+    }
+    const w = Math.max(280, Math.round(rect.width || 800));
+    const h = Math.max(320, Math.round(rect.height || 600));
+    const nextDpr = Math.min(window.devicePixelRatio || 1, w < 700 ? 1.6 : 1.8);
+    if (w === this.width && h === this.height && nextDpr === this.dpr && this.background) {
+      return;
+    }
+    this.dpr = nextDpr;
+    this.drawDist = w < 700 ? 140 : 168;
     this.width = w;
     this.height = h;
     this.canvas.width = Math.round(w * this.dpr);
@@ -1614,11 +1660,21 @@ export class MilleCurveGame {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
+    if (w <= 0 || h <= 0 || this.segments.length === 0) return;
+
+    if (!Number.isFinite(this.position) || this.position < 0) this.position = 0;
+    if (!Number.isFinite(this.playerX)) this.playerX = 0;
+    if (!Number.isFinite(this.bgDrift)) this.bgDrift = 0;
+
+    // Ripristina sempre trasformazione e opacità per evitare stati sporchi del canvas
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
 
     ctx.fillStyle = "#1a1c1a";
     ctx.fillRect(0, 0, w, h);
 
-    // Coordinate cicliche sul circuito (evita la scomparsa della strada dopo il 1° giro!)
+    // Coordinate cicliche sul circuito (evita la scomparsa della strada su tutti i giri)
     const trackPos = ((this.position % this.trackLength) + this.trackLength) % this.trackLength;
     const playerTrackPos =
       (((this.position + PLAYER_Z) % this.trackLength) + this.trackLength) % this.trackLength;
@@ -1633,7 +1689,7 @@ export class MilleCurveGame {
     if (this.background) {
       const drift = -this.bgDrift * w * 0.03 - (base.curve / 5) * w * 0.006;
       const bleed = (this.bgWidth - w) / 2;
-      const bob = Math.sin(this.position / 900) * 2;
+      const bob = Math.sin(trackPos / 900) * 2;
       ctx.drawImage(this.background, -bleed + drift, bob, this.bgWidth, h);
     }
 
@@ -1654,21 +1710,29 @@ export class MilleCurveGame {
     ground.addColorStop(0.45, "#6b7549");
     ground.addColorStop(1, "#5d6740");
     ctx.fillStyle = ground;
-    ctx.fillRect(-40, h * 0.5 - 1, w + 80, h * 0.5 + 2);
+    ctx.fillRect(-60, h * 0.48, w + 120, h * 0.55);
 
     /* --- strada --- */
+    const numSegs = this.segments.length;
     for (let n = 0; n < this.drawDist; n++) {
-      const seg = this.segments[(baseIdx + n) % this.segments.length];
-      seg.looped = baseIdx + n >= this.segments.length;
+      const rawIdx = baseIdx + n;
+      const seg = this.segments[rawIdx % numSegs];
+      seg.looped = rawIdx >= numSegs;
       seg.rendered = false;
-      const camZ = trackPos - (seg.looped ? this.trackLength : 0);
-      this.project(seg.p1, camX - x, playerY + CAM_HEIGHT, camZ);
-      this.project(seg.p2, camX - x - dx, playerY + CAM_HEIGHT, camZ);
+      const wrapCount = Math.floor(rawIdx / numSegs);
+      const camZ = trackPos - wrapCount * this.trackLength;
+      const inFront = this.projectSegment(
+        seg,
+        camX - x,
+        camX - x - dx,
+        playerY + CAM_HEIGHT,
+        camZ
+      );
       seg.clip = maxy;
       x += dx;
       dx += seg.curve;
       if (
-        seg.p1.camera.z <= CAM_DEPTH ||
+        !inFront ||
         seg.p2.screen.y >= seg.p1.screen.y ||
         seg.p2.screen.y >= maxy
       ) {
@@ -1844,6 +1908,16 @@ export class MilleCurveGame {
     const x2 = seg.p2.screen.x;
     const y2 = seg.p2.screen.y;
     const w2 = seg.p2.screen.w;
+    const clipY = seg.clip;
+    const needsHillClip = y1 > clipY && clipY < this.height;
+
+    if (needsHillClip) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-60, -40, w + 120, clipY + 40);
+      ctx.clip();
+    }
+
     const rumblePhase = Math.floor(seg.index / RUMBLE_LEN) % 3;
     const rumbleColor =
       rumblePhase === 0 ? "#1f7a52" : rumblePhase === 1 ? "#f0e7d6" : "#d2382b";
@@ -1854,9 +1928,10 @@ export class MilleCurveGame {
     const laneW1 = w1 * 0.014;
     const laneW2 = w2 * 0.014;
 
-    if (y1 - y2 > 0.9) {
+    const grassBottom = Math.min(y1, clipY);
+    if (grassBottom - y2 > 0.5) {
       ctx.fillStyle = grass;
-      ctx.fillRect(0, y2, w, y1 - y2 + 1);
+      ctx.fillRect(-60, y2, w + 120, grassBottom - y2 + 1.5);
     }
 
     if (w1 > 1.2) {
@@ -1879,6 +1954,7 @@ export class MilleCurveGame {
         const col = (c + seg.index) % 2 === 0 ? "#f3ecdd" : "#151818";
         this.poly(cx1a, y1, cx1b, y1, cx2b, y2, cx2a, y2, col);
       }
+      if (needsHillClip) ctx.restore();
       return;
     }
 
@@ -1907,6 +1983,8 @@ export class MilleCurveGame {
         );
       }
     }
+
+    if (needsHillClip) ctx.restore();
   }
 
   private poly(
@@ -1943,18 +2021,16 @@ export class MilleCurveGame {
     const destX = seg.p1.screen.x + offset * ROAD_WIDTH * spriteScale - destW / 2;
     const destY = seg.p1.screen.y - destH + 2;
     if (destX > this.width || destX + destW < 0) return;
+
+    ctx.save();
     ctx.globalAlpha = fade;
     if (destY + destH > clip) {
-      ctx.save();
       ctx.beginPath();
-      ctx.rect(0, -this.height, this.width, clip + this.height);
+      ctx.rect(-60, -this.height, this.width + 120, clip + this.height);
       ctx.clip();
-      ctx.drawImage(asset.img, destX, destY, destW, destH);
-      ctx.restore();
-    } else {
-      ctx.drawImage(asset.img, destX, destY, destW, destH);
     }
-    ctx.globalAlpha = 1;
+    ctx.drawImage(asset.img, destX, destY, destW, destH);
+    ctx.restore();
   }
 
   private renderTrackItem(
@@ -1984,11 +2060,10 @@ export class MilleCurveGame {
     const destX = centerX + item.x * ROAD_WIDTH * spriteScale - destW / 2;
     const destY = roadY - destH - floatOffset + 2;
 
-    const needsClip = roadY > clip;
-    if (needsClip) {
-      ctx.save();
+    ctx.save();
+    if (roadY > clip) {
       ctx.beginPath();
-      ctx.rect(0, -this.height, this.width, clip + this.height);
+      ctx.rect(-60, -this.height, this.width + 120, clip + this.height);
       ctx.clip();
     }
 
@@ -2002,8 +2077,7 @@ export class MilleCurveGame {
 
     ctx.globalAlpha = fade;
     ctx.drawImage(asset.img, destX, destY, destW, destH);
-    ctx.globalAlpha = 1;
-    if (needsClip) ctx.restore();
+    ctx.restore();
   }
 
   private renderCar(
@@ -2031,11 +2105,10 @@ export class MilleCurveGame {
     const destX = centerX + car.x * ROAD_WIDTH * spriteScale - destW / 2;
     const destY = roadY - destH + 2;
 
-    const needsClip = destY + destH > clip;
-    if (needsClip) {
-      ctx.save();
+    ctx.save();
+    if (destY + destH > clip) {
       ctx.beginPath();
-      ctx.rect(0, -this.height, this.width, clip + this.height);
+      ctx.rect(-60, -this.height, this.width + 120, clip + this.height);
       ctx.clip();
     }
 
@@ -2046,10 +2119,9 @@ export class MilleCurveGame {
     ctx.fill();
 
     ctx.globalAlpha = fade;
-    const bump = Math.sin(this.position / 700 + car.wobble) * destH * 0.008;
+    const bump = Math.sin((this.position % this.trackLength) / 700 + car.wobble) * destH * 0.008;
     ctx.drawImage(car.sprite.img, destX, destY + bump, destW, destH);
-    ctx.globalAlpha = 1;
-    if (needsClip) ctx.restore();
+    ctx.restore();
   }
 
   private drawPlayerCar() {
