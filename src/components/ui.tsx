@@ -34,7 +34,14 @@ type ButtonProps = {
   ariaLabel?: string;
 };
 
-export function PrimaryButton({ children, onClick, className, type = "button", disabled, ariaLabel }: ButtonProps) {
+export function PrimaryButton({
+  children,
+  onClick,
+  className,
+  type = "button",
+  disabled,
+  ariaLabel,
+}: ButtonProps) {
   return (
     <button
       type={type}
@@ -56,7 +63,13 @@ export function PrimaryButton({ children, onClick, className, type = "button", d
   );
 }
 
-export function SecondaryButton({ children, onClick, className, disabled, ariaLabel }: ButtonProps) {
+export function SecondaryButton({
+  children,
+  onClick,
+  className,
+  disabled,
+  ariaLabel,
+}: ButtonProps) {
   return (
     <button
       type="button"
@@ -126,19 +139,35 @@ export function IconButton({
   );
 }
 
+const CHASSIS_SHORT: Record<string, string> = {
+  berlinetta: "GT",
+  barchetta: "Sprint",
+  prototipo: "V12",
+  corazzata: "Rally",
+};
+
 export function ScoreTable({
   scores,
   highlightId,
   limit = 5,
   dark = false,
   showMeta = true,
+  loading = false,
 }: {
   scores: ScoreEntry[];
   highlightId?: string;
   limit?: number;
   dark?: boolean;
   showMeta?: boolean;
+  loading?: boolean;
 }) {
+  if (loading && !scores.length) {
+    return (
+      <p className={cn("py-6 text-center text-[11px] uppercase tracking-[0.16em]", dark ? "text-ink/50" : "text-paper/50")}>
+        Connessione al cronometraggio...
+      </p>
+    );
+  }
   const rows = scores.slice(0, limit);
   if (!rows.length) {
     return (
@@ -151,11 +180,15 @@ export function ScoreTable({
     <ol className={cn("divide-y", dark ? "divide-ink/10" : "divide-paper/10")}>
       {rows.map((entry, i) => {
         const highlight = entry.id === highlightId;
+        const badgeColor = entry.carColor || "#df3b2c";
+        const carNum = entry.carNumber || "27";
+        const chassisLabel = entry.carChassis ? CHASSIS_SHORT[entry.carChassis] ?? entry.carChassis : null;
+
         return (
           <li
             key={entry.id}
             className={cn(
-              "flex items-center gap-3 px-2.5 py-[9px] transition-colors",
+              "flex items-center gap-2.5 px-2.5 py-[9px] transition-colors",
               highlight && (dark ? "bg-rosso/12" : "bg-rosso/15"),
               i === 0 && !highlight && (dark ? "bg-ink/[0.035]" : "bg-paper/[0.04]")
             )}
@@ -168,6 +201,16 @@ export function ScoreTable({
             >
               {String(i + 1).padStart(2, "0")}
             </span>
+
+            {/* Bollo auto personalizzata */}
+            <span
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-black tracking-tight text-white shadow-sm ring-1 ring-black/20"
+              style={{ backgroundColor: badgeColor }}
+              title={chassisLabel ? `Auto #${carNum} · ${chassisLabel}` : `Auto #${carNum}`}
+            >
+              {carNum.slice(0, 2)}
+            </span>
+
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span
@@ -197,11 +240,13 @@ export function ScoreTable({
               {showMeta && (
                 <p
                   className={cn(
-                    "mt-0.5 text-[9px] uppercase tracking-[0.12em]",
-                    dark ? "text-ink/40" : "text-paper/35"
+                    "mt-0.5 truncate text-[9px] uppercase tracking-[0.11em]",
+                    dark ? "text-ink/45" : "text-paper/35"
                   )}
                 >
-                  {entry.date} · {entry.distanceKm.toFixed(1)} km · {entry.topSpeedKmh} km/h
+                  {entry.date}
+                  {chassisLabel ? ` · ${chassisLabel}` : ""} · {entry.distanceKm.toFixed(1)} km ·{" "}
+                  {entry.topSpeedKmh} km/h
                 </p>
               )}
             </div>
@@ -222,10 +267,34 @@ export function ScoreTable({
 
 export function Trophy({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn("h-4 w-4", className)} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      className={cn("h-4 w-4", className)}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
       <path d="M16 5h2a2 2 0 0 1 0 4h-1M8 5H6a2 2 0 0 0 0 4h1" />
       <path d="M12 13v4M8.5 21h7M10 21v-2h4v2" />
+    </svg>
+  );
+}
+
+export function WrenchGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn("h-4 w-4", className)}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z" />
     </svg>
   );
 }
@@ -276,10 +345,20 @@ export function Stat({
       >
         {label}
       </p>
-      <p className={cn("mt-0.5 font-display text-xl leading-none tabular", dark ? "text-ink" : "text-paper")}>
+      <p
+        className={cn(
+          "mt-0.5 font-display text-xl leading-none tabular",
+          dark ? "text-ink" : "text-paper"
+        )}
+      >
         {value}
         {unit && (
-          <span className={cn("ml-1 font-sans text-[9px] font-semibold", dark ? "text-ink/40" : "text-paper/40")}>
+          <span
+            className={cn(
+              "ml-1 font-sans text-[9px] font-semibold",
+              dark ? "text-ink/40" : "text-paper/40"
+            )}
+          >
             {unit}
           </span>
         )}

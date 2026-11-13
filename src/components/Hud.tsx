@@ -1,3 +1,4 @@
+import { GADGET_META } from "../game/garage";
 import type { HudState } from "../game/types";
 import { cn } from "../utils/cn";
 import { CarGlyph, IconButton, KeyCap } from "./ui";
@@ -12,10 +13,11 @@ function SteeringWheel({ className }: { className?: string }) {
   );
 }
 
-function Lives({ lives }: { lives: number }) {
+function Lives({ lives, maxLives }: { lives: number; maxLives: number }) {
+  const slots = Array.from({ length: Math.max(3, maxLives) });
   return (
     <div className="flex items-center gap-1" aria-label={`Vite rimaste: ${lives}`}>
-      {[0, 1, 2].map((i) => (
+      {slots.map((_, i) => (
         <span
           key={i}
           className={cn(
@@ -33,7 +35,7 @@ function Lives({ lives }: { lives: number }) {
 }
 
 function Speedometer({ speed, gear, boost }: { speed: number; gear: number; boost: boolean }) {
-  const max = 380;
+  const max = 410;
   const pct = Math.min(speed / max, 1);
   const angle = -118 + pct * 236;
   const ticks = Array.from({ length: 13 });
@@ -52,7 +54,6 @@ function Speedometer({ speed, gear, boost }: { speed: number; gear: number; boos
             <stop offset="100%" stopColor="#e23e31" />
           </linearGradient>
         </defs>
-        {/* arco di fondo */}
         <path
           d="M 24 84 A 56 56 0 1 1 136 84"
           fill="none"
@@ -98,7 +99,12 @@ function Speedometer({ speed, gear, boost }: { speed: number; gear: number; boos
         </span>
         <span className="mt-0.5 flex items-center gap-1 text-[7px] font-bold uppercase tracking-[0.22em] text-paper/50">
           km/h
-          <span className={cn("rounded-sm px-1 py-[1px] text-[7px]", boost ? "bg-oro text-ink" : "bg-paper/15 text-paper/80")}>
+          <span
+            className={cn(
+              "rounded-sm px-1 py-[1px] text-[7px]",
+              boost ? "bg-oro text-ink" : "bg-paper/15 text-paper/80"
+            )}
+          >
             {boost ? "TURBO" : `${gear}ª`}
           </span>
         </span>
@@ -111,10 +117,16 @@ function TurboBar({ value, boost }: { value: number; boost: boolean }) {
   const segments = 12;
   const filled = Math.round((value / 100) * segments);
   return (
-    <div className="w-[128px] md:w-[190px]">
+    <div className="w-[132px] md:w-[194px]">
       <div className="mb-1 flex items-center justify-between">
         <span className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-[0.22em] text-paper/60">
-          <svg viewBox="0 0 24 24" className={cn("h-3 w-3", boost ? "text-oro" : "text-paper/50")} fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            viewBox="0 0 24 24"
+            className={cn("h-3 w-3", boost ? "text-oro" : "text-paper/50")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M13 2 4.5 13.5H11L9.5 22 19 9.5h-6.5L13 2Z" strokeLinejoin="round" />
           </svg>
           Turbo
@@ -143,6 +155,32 @@ function TurboBar({ value, boost }: { value: number; boost: boolean }) {
   );
 }
 
+function EffectBadge({
+  label,
+  progress,
+  color,
+}: {
+  label: string;
+  progress: number;
+  color: string;
+}) {
+  if (progress <= 0.01) return null;
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-paper/15 bg-ink/65 px-2.5 py-1 backdrop-blur-md">
+      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      <div className="w-20">
+        <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-paper/85">{label}</p>
+        <div className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-paper/15">
+          <div
+            className="h-full rounded-full transition-[width] duration-100"
+            style={{ width: `${Math.round(progress * 100)}%`, backgroundColor: color }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Hud({
   hud,
   best,
@@ -150,6 +188,7 @@ export function Hud({
   muted,
   onPause,
   onToggleMute,
+  onUseGadget,
   showHints,
 }: {
   hud: HudState;
@@ -158,47 +197,94 @@ export function Hud({
   muted: boolean;
   onPause: () => void;
   onToggleMute: () => void;
+  onUseGadget: () => void;
   showHints: boolean;
 }) {
+  const gadgetMeta = hud.heldGadget ? GADGET_META[hud.heldGadget] : null;
+
   return (
     <div className="pointer-events-none absolute inset-0 z-20 select-none">
-      {/* punteggio */}
+      {/* Punteggio, Vite, Gettoni e Turbo */}
       <div className="absolute left-3 top-3 flex flex-col items-start gap-2 md:left-4 md:top-4">
-        <div className="rounded-xl border border-paper/15 bg-ink/55 px-2.5 py-2 backdrop-blur-md md:px-4 md:py-2.5">
+        <div className="rounded-xl border border-paper/15 bg-ink/58 px-2.5 py-2 backdrop-blur-md md:px-4 md:py-2.5">
           <div className="flex items-center gap-2">
             <span className="text-[8px] font-bold uppercase tracking-[0.26em] text-paper/50">Punti</span>
             <span className="h-1 w-1 rounded-full bg-rosso" />
             <span className="text-[8px] font-semibold uppercase tracking-[0.16em] text-paper/35 tabular">
               best {best.toLocaleString("it-IT")}
             </span>
+            {hud.effects.crono > 0 && (
+              <span className="rounded bg-[#b78cff]/25 px-1.5 py-[1px] text-[7px] font-black uppercase tracking-wider text-[#d5bdff]">
+                2×
+              </span>
+            )}
           </div>
           <div className="font-display text-[23px] leading-none tabular text-paper md:text-[32px]">
             {hud.score.toLocaleString("it-IT")}
           </div>
-          <div className="mt-1 flex items-center gap-2.5">
-            <span className="font-sans text-[9px] font-semibold uppercase tracking-[0.12em] text-paper/55 tabular">
-              {hud.distanceKm.toFixed(2)} km
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className="font-sans text-[9px] font-semibold uppercase tracking-[0.12em] text-paper/60 tabular">
+              {hud.distanceKm.toFixed(2)} km · G{hud.lap}
             </span>
             <span className="h-[9px] w-px bg-paper/20" />
-            <Lives lives={hud.lives} />
+            <span className="font-sans text-[9px] font-bold uppercase tracking-[0.12em] text-oro tabular">
+              ★ {hud.coins}
+            </span>
+            <span className="h-[9px] w-px bg-paper/20" />
+            <Lives lives={hud.lives} maxLives={hud.maxLives} />
           </div>
         </div>
-        <div className="rounded-lg border border-paper/10 bg-ink/45 px-2.5 py-1.5 backdrop-blur-md">
+
+        <div className="rounded-lg border border-paper/10 bg-ink/48 px-2.5 py-1.5 backdrop-blur-md">
           <TurboBar value={hud.turbo} boost={hud.boost} />
         </div>
-        {showHints && (
-          <div className="hidden items-center gap-1.5 rounded-lg border border-paper/10 bg-ink/40 px-2 py-1.5 backdrop-blur-md md:flex">
-            <KeyCap>←</KeyCap>
-            <KeyCap>→</KeyCap>
-            <span className="text-[8px] uppercase tracking-[0.16em] text-paper/45">sterzo</span>
-            <span className="mx-1 h-3 w-px bg-paper/15" />
-            <KeyCap wide>SPAZIO</KeyCap>
-            <span className="text-[8px] uppercase tracking-[0.16em] text-oro/70">turbo</span>
-          </div>
+
+        {/* Slot Oggetto Tattico */}
+        {gadgetMeta ? (
+          <button
+            type="button"
+            onClick={onUseGadget}
+            className="pointer-events-auto flex items-center gap-2.5 rounded-xl border border-oro/55 bg-ink/75 px-3 py-2 text-left shadow-[0_0_24px_-6px_rgba(233,180,92,0.55)] backdrop-blur-md transition-transform hover:scale-[1.02] active:scale-95"
+          >
+            <span
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[12px] font-black text-ink"
+              style={{ backgroundColor: gadgetMeta.color }}
+            >
+              ✦
+            </span>
+            <div>
+              <p className="text-[7px] font-bold uppercase tracking-[0.22em] text-oro">
+                Oggetto pronto
+              </p>
+              <p className="font-display text-[15px] leading-none tracking-wide text-paper">
+                {gadgetMeta.name}
+              </p>
+            </div>
+            <div className="hidden pl-1 md:block">
+              <KeyCap>E</KeyCap>
+            </div>
+          </button>
+        ) : (
+          showHints && (
+            <div className="hidden items-center gap-1.5 rounded-lg border border-paper/10 bg-ink/40 px-2.5 py-1.5 backdrop-blur-md md:flex">
+              <span className="text-[8px] uppercase tracking-[0.16em] text-paper/40">
+                Cassa <span className="text-oro">?</span> = oggetto tattico
+              </span>
+              <KeyCap>E</KeyCap>
+            </div>
+          )
         )}
+
+        {/* Effetti temporanei attivi */}
+        <div className="flex flex-col gap-1">
+          <EffectBadge label="Scudo Corse" progress={hud.effects.shield} color="#68f2cc" />
+          <EffectBadge label="Calamita" progress={hud.effects.magnet} color="#ffd86b" />
+          <EffectBadge label="Crono 2×" progress={hud.effects.crono} color="#b78cff" />
+          <EffectBadge label="Furia" progress={hud.effects.overboost} color="#ff7a45" />
+        </div>
       </div>
 
-      {/* utility */}
+      {/* Utility in alto a destra */}
       <div className="absolute right-3 top-3 flex items-center gap-2 md:right-4 md:top-4">
         <IconButton label={muted ? "Attiva audio" : "Silenzia audio"} onClick={onToggleMute}>
           {muted ? (
@@ -227,13 +313,13 @@ export function Hud({
         </IconButton>
       </div>
 
-      {/* combo */}
-      <div className="absolute left-3 top-[148px] md:left-1/2 md:top-4 md:-translate-x-1/2">
+      {/* Combo centrale */}
+      <div className="absolute left-1/2 top-3 -translate-x-1/2 md:top-4">
         <div
           className={cn(
             "flex flex-col items-center gap-1 rounded-xl border px-3 py-1.5 backdrop-blur-md transition-all duration-300",
             hud.combo > 1
-              ? "border-oro/40 bg-ink/60 opacity-100"
+              ? "border-oro/40 bg-ink/65 opacity-100"
               : "pointer-events-none -translate-y-1 border-transparent bg-transparent opacity-0"
           )}
         >
@@ -250,30 +336,37 @@ export function Hud({
         </div>
       </div>
 
-      {/* avviso fuori pista */}
+      {/* Avviso fuori pista / sbandata olio */}
       <div
         className={cn(
-          "absolute bottom-28 left-1/2 -translate-x-1/2 rounded-lg border border-oro/40 bg-ink/70 px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-oro backdrop-blur-md transition-opacity duration-200 md:bottom-6",
-          hud.offroad ? "opacity-100" : "opacity-0"
+          "absolute bottom-28 left-1/2 -translate-x-1/2 rounded-lg border px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.22em] backdrop-blur-md transition-opacity duration-200 md:bottom-6",
+          hud.effects.slip
+            ? "border-rosso/60 bg-ink/80 text-rosso opacity-100"
+            : hud.offroad
+            ? "border-oro/40 bg-ink/70 text-oro opacity-100"
+            : "opacity-0"
         )}
       >
-        Fuori pista · rallenta
+        {hud.effects.slip ? "Olio in pista · controsterza!" : "Fuori pista · rallenta"}
       </div>
 
-      {/* tachimetro desktop */}
+      {/* Tachimetro desktop & mobile */}
       <div className="absolute bottom-4 right-4 hidden md:block">
         <Speedometer speed={hud.speedKmh} gear={hud.gear} boost={hud.boost} />
       </div>
-      {/* tachimetro mobile */}
       <div className="absolute right-2.5 top-[52px] origin-top-right scale-[0.78] md:hidden">
         <Speedometer speed={hud.speedKmh} gear={hud.gear} boost={hud.boost} />
       </div>
 
-      {/* aiuto sterzo desktop */}
+      {/* Suggerimento basso sinistra desktop */}
       <div className="absolute bottom-5 left-4 hidden items-center gap-2 rounded-lg border border-paper/10 bg-ink/40 px-2.5 py-1.5 backdrop-blur-md md:flex">
         <SteeringWheel className="h-4 w-4 text-paper/45" />
         <span className="text-[8px] font-semibold uppercase tracking-[0.16em] text-paper/45">
-          {hud.offroad ? "Rientra in pista" : "Guida pulita = combo"}
+          {hud.offroad
+            ? "Rientra in pista"
+            : gadgetMeta
+            ? `Premi E o ↑ per ${gadgetMeta.short}`
+            : "Raccogli ★ e casse Scuderia"}
         </span>
       </div>
     </div>
