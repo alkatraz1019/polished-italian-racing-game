@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from "react";
+import { GADGET_META } from "../game/garage";
+import type { GadgetKind } from "../game/types";
 import { cn } from "../utils/cn";
 
 function HoldButton({
@@ -61,35 +63,69 @@ export function TouchControls({
   onSteer,
   onBrake,
   onTurbo,
+  onUseGadget,
+  heldGadget,
   boost,
 }: {
   onSteer: (steer: number) => void;
   onBrake: (pressed: boolean) => void;
   onTurbo: (pressed: boolean) => void;
+  onUseGadget: () => void;
+  heldGadget: GadgetKind | null;
   boost: boolean;
 }) {
+  const gadgetMeta = heldGadget ? GADGET_META[heldGadget] : null;
+
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-3 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink/70 via-ink/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-ink/75 via-ink/20 to-transparent" />
       <div className="flex items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <div className="flex gap-2">
-            <HoldButton label="Sterza a sinistra" onDown={() => onSteer(-1)} onUp={() => onSteer(0)} className="h-[64px] w-[64px] rounded-full">
+            <HoldButton
+              label="Sterza a sinistra"
+              onDown={() => onSteer(-1)}
+              onUp={() => onSteer(0)}
+              className="h-[64px] w-[64px] rounded-full"
+            >
               <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 5 8 12l7 7" />
               </svg>
             </HoldButton>
-            <HoldButton label="Sterza a destra" onDown={() => onSteer(1)} onUp={() => onSteer(0)} className="h-[64px] w-[64px] rounded-full">
+            <HoldButton
+              label="Sterza a destra"
+              onDown={() => onSteer(1)}
+              onUp={() => onSteer(0)}
+              className="h-[64px] w-[64px] rounded-full"
+            >
               <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m9 5 7 7-7 7" />
               </svg>
             </HoldButton>
           </div>
-          <span className="pl-1 text-[8px] font-bold uppercase tracking-[0.22em] text-paper/55">sterzo</span>
+          <span className="pl-1 text-[8px] font-bold uppercase tracking-[0.22em] text-paper/55">
+            sterzo
+          </span>
         </div>
+
         <div className="flex flex-col items-end gap-1.5">
+          {gadgetMeta && (
+            <button
+              type="button"
+              onClick={onUseGadget}
+              className="pointer-events-auto mb-1 flex items-center gap-1.5 rounded-full border border-oro/70 bg-ink/85 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-oro shadow-[0_0_20px_rgba(233,180,92,0.5)] active:scale-95"
+            >
+              <span>✦</span>
+              <span>{gadgetMeta.short}</span>
+            </button>
+          )}
           <div className="flex items-end gap-2">
-            <HoldButton label="Freno" onDown={() => onBrake(true)} onUp={() => onBrake(false)} className="h-[50px] w-[50px] rounded-full">
+            <HoldButton
+              label="Freno"
+              onDown={() => onBrake(true)}
+              onUp={() => onBrake(false)}
+              className="h-[50px] w-[50px] rounded-full"
+            >
               <span className="flex flex-col items-center gap-0.5">
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="5" y="5" width="14" height="14" rx="3" />
@@ -115,7 +151,9 @@ export function TouchControls({
               </span>
             </HoldButton>
           </div>
-          <span className="pr-1 text-[8px] font-bold uppercase tracking-[0.22em] text-paper/55">freno · turbo</span>
+          <span className="pr-1 text-[8px] font-bold uppercase tracking-[0.22em] text-paper/55">
+            freno · turbo
+          </span>
         </div>
       </div>
     </div>

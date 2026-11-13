@@ -1,7 +1,25 @@
 /**
  * Motore audio sintetizzato: nessun file esterno, nessun ritardo di caricamento.
- * Il rombo segue la velocità; gli effetti aggiungono il "juice" alle azioni.
+ * Il rombo segue la velocità; gli effetti accompagnano sorpassi, oggetti e traguardi.
  */
+
+export type SoundEffect =
+  | "overtake"
+  | "nearmiss"
+  | "crash"
+  | "turbo"
+  | "ui"
+  | "start"
+  | "record"
+  | "lost"
+  | "coin"
+  | "powerup"
+  | "emp"
+  | "crono"
+  | "oil"
+  | "shield_hit"
+  | "lap";
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -26,7 +44,6 @@ export class AudioEngine {
     return this.muted;
   }
 
-  /** Deve essere chiamato da un gesto dell'utente. */
   unlock() {
     try {
       if (!this.ctx) {
@@ -75,7 +92,6 @@ export class AudioEngine {
       this.oscB.start();
       this.engineGain.gain.setTargetAtTime(0.075, ctx.currentTime, 0.4);
 
-      // rotolamento / vento
       const buffer = this.createNoiseBuffer(2);
       this.noiseSource = ctx.createBufferSource();
       this.noiseSource.buffer = buffer;
@@ -97,15 +113,15 @@ export class AudioEngine {
     }
   }
 
-  updateEngine(speedPct: number, boost: boolean, offroad: boolean) {
+  updateEngine(speedPct: number, boost: boolean, offroad: boolean, crono = false) {
     if (!this.ctx || !this.running) return;
     const t = this.ctx.currentTime;
-    const p = Math.max(0, Math.min(1.3, speedPct));
+    const p = Math.max(0, Math.min(1.4, speedPct)) * (crono ? 0.86 : 1);
     try {
-      this.oscA?.frequency.setTargetAtTime(52 + p * 132 + (boost ? 26 : 0), t, 0.07);
-      this.oscB?.frequency.setTargetAtTime(74 + p * 188 + (boost ? 40 : 0), t, 0.07);
+      this.oscA?.frequency.setTargetAtTime(52 + p * 132 + (boost ? 28 : 0), t, 0.07);
+      this.oscB?.frequency.setTargetAtTime(74 + p * 188 + (boost ? 42 : 0), t, 0.07);
       this.engineFilter?.frequency.setTargetAtTime(
-        360 + p * 1150 + (boost ? 420 : 0),
+        360 + p * 1150 + (boost ? 440 : 0),
         t,
         0.08
       );
@@ -187,10 +203,17 @@ export class AudioEngine {
     source.stop(t0 + opts.duration + 0.06);
   }
 
-  private tone(freq: number, duration: number, gainVal = 0.12, type: OscillatorType = "sine", slideTo?: number) {
+  private tone(
+    freq: number,
+    duration: number,
+    gainVal = 0.12,
+    type: OscillatorType = "sine",
+    slideTo?: number,
+    delay = 0
+  ) {
     if (!this.ctx || !this.master) return;
     const ctx = this.ctx;
-    const t0 = ctx.currentTime;
+    const t0 = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
@@ -205,16 +228,16 @@ export class AudioEngine {
     osc.stop(t0 + duration + 0.03);
   }
 
-  play(name: "overtake" | "nearmiss" | "crash" | "turbo" | "ui" | "start" | "record" | "lost") {
+  play(name: SoundEffect) {
     if (!this.ctx || this.muted) return;
     try {
       switch (name) {
         case "overtake":
-          this.noiseBurst({ duration: 0.32, gain: 0.16, from: 700, to: 2600 });
+          this.noiseBurst({ duration: 0.3, gain: 0.15, from: 700, to: 2600 });
           this.tone(520, 0.16, 0.05, "triangle", 880);
           break;
         case "nearmiss":
-          this.noiseBurst({ duration: 0.4, gain: 0.24, from: 1600, to: 320, q: 2.2 });
+          this.noiseBurst({ duration: 0.38, gain: 0.22, from: 1600, to: 320, q: 2.2 });
           this.tone(880, 0.22, 0.06, "triangle", 1320);
           this.tone(1320, 0.3, 0.045, "sine", 660);
           break;
@@ -224,25 +247,58 @@ export class AudioEngine {
           this.tone(64, 0.7, 0.22, "triangle", 30);
           break;
         case "turbo":
-          this.noiseBurst({ duration: 0.65, gain: 0.2, from: 400, to: 3400 });
-          this.tone(180, 0.5, 0.07, "sawtooth", 620);
+          this.noiseBurst({ duration: 0.62, gain: 0.19, from: 400, to: 3400 });
+          this.tone(180, 0.48, 0.07, "sawtooth", 620);
+          break;
+        case "coin":
+          this.tone(988, 0.09, 0.065, "triangle");
+          this.tone(1319, 0.18, 0.07, "sine", undefined, 0.055);
+          break;
+        case "powerup":
+          this.tone(523, 0.11, 0.07, "triangle", undefined, 0);
+          this.tone(659, 0.11, 0.07, "triangle", undefined, 0.065);
+          this.tone(784, 0.14, 0.075, "triangle", undefined, 0.13);
+          this.tone(1046, 0.25, 0.08, "sine", undefined, 0.2);
+          break;
+        case "emp":
+          this.noiseBurst({ duration: 0.55, gain: 0.28, from: 2600, to: 140, q: 1.6 });
+          this.tone(240, 0.55, 0.18, "sawtooth", 48);
+          this.tone(960, 0.28, 0.08, "sine", 1920);
+          break;
+        case "crono":
+          this.tone(1046, 0.45, 0.08, "sine", 392);
+          this.tone(784, 0.45, 0.06, "triangle", 294, 0.06);
+          break;
+        case "oil":
+          this.noiseBurst({ duration: 0.52, gain: 0.2, from: 1950, to: 1180, q: 6.5 });
+          this.tone(360, 0.32, 0.06, "sawtooth", 190);
+          break;
+        case "shield_hit":
+          this.noiseBurst({ duration: 0.28, gain: 0.2, from: 2400, to: 800, q: 2.5 });
+          this.tone(1320, 0.24, 0.09, "triangle", 660);
+          this.tone(880, 0.3, 0.07, "sine", 1760);
+          break;
+        case "lap":
+          [523, 659, 784, 1046].forEach((f, i) => {
+            this.tone(f, 0.2, 0.085, "square", undefined, i * 0.09);
+          });
           break;
         case "ui":
           this.tone(660, 0.07, 0.05, "triangle", 780);
           break;
         case "start":
-          this.tone(392, 0.14, 0.09, "square");
-          this.tone(523, 0.14, 0.09, "square");
-          this.tone(784, 0.34, 0.1, "square");
+          this.tone(392, 0.13, 0.085, "square", undefined, 0);
+          this.tone(523, 0.13, 0.085, "square", undefined, 0.11);
+          this.tone(784, 0.34, 0.1, "square", undefined, 0.22);
           break;
         case "record":
-          [523, 659, 784, 1046].forEach((f, i) => {
-            window.setTimeout(() => this.tone(f, 0.26, 0.08, "triangle"), i * 110);
+          [523, 659, 784, 1046, 1319].forEach((f, i) => {
+            this.tone(f, 0.26, 0.08, "triangle", undefined, i * 0.1);
           });
           break;
         case "lost":
-          this.tone(392, 0.22, 0.09, "square", 330);
-          window.setTimeout(() => this.tone(262, 0.4, 0.09, "square", 196), 180);
+          this.tone(392, 0.22, 0.09, "square", 330, 0);
+          this.tone(262, 0.42, 0.09, "square", 185, 0.18);
           break;
       }
     } catch {
